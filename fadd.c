@@ -63,7 +63,7 @@ uint32_t fadd(uint32_t a, uint32_t b)
     
     
     if ((ma & 4) && (ma & 11)) {
-        ma += (1 << 3);
+        ma += (1u << 3);
         if (RANGE(ma, 27, 28) == 1) {
             ++exp;
             ma >>= 1;
