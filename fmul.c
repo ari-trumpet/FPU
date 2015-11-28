@@ -21,7 +21,7 @@ uint32_t fmul(uint32_t a, uint32_t b) {
     result.sign = 0;
     result.exp  = 255;
     result.frac = FRAC_MAX;  // NaN
-  } else if ((a_32bit.exp == 255 && b_32bit.exp == 0) ||
+  } else if ((a_32bit.exp == 255 && b_32bit.exp == 0) ||  //グラデュアルアンダーフロー非対応。要変更
 	     (a_32bit.exp == 0 && b_32bit.exp == 255)) {
     result.sign = 0;
     result.exp  = 255;
