@@ -15,12 +15,9 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.std_logic_misc.all;
 use IEEE.numeric_std.all;
-use IEEE.std_logic_unsigned.all;
+use ieee.std_logic_unsigned.all;
 use std.textio.all;
 use ieee.std_logic_textio.all;
-
-library work;
-use work.fpu_common_p.all;
 
 entity fadd is
   Port ( A,B : in std_logic_vector(31 downto 0);
@@ -35,7 +32,7 @@ architecture blackbox of FADD is
   is
     variable result : std_logic_vector(22 downto 0);
   begin
-    if (4 < num(3 downto 0) and num(3 downto 0) < 8) or 11 < num(3 downto 0) then
+    if (4 < num(3 downto 0) and num(3 downto 0) < 8) or 11 < num(3 downto 0) then  --一考
       result := num(25 downto 3) + 1;
     else
       result := num(25 downto 3);
