@@ -6,7 +6,7 @@
 #include <math.h>
 #include "def.h"
 
-#define MAX      512  // 1 ~ 2, 2 ~ 4 をそれぞれ512分割(計1024分割)
+#define MAX      512  // 2^9 . 1 ~ 2, 2 ~ 4 をそれぞれ512分割(計1024分割)
 #define MASK9    8372224 //((1 << 9) - 1) << 14 精度を変更する場合注意
 #define MASK10   8380416 //((1 << 10) - 1) << 13  精度を変更する場合注意
 
@@ -73,7 +73,7 @@ uint32_t fsqrt(uint32_t org) {
       x.exp = 128; // 奇数乗のとき(1.仮数部)*2 
     }
 
-    if (original.exp >= 127) {
+    if (original.exp >= 127) {  // 2^ 1/2
       d = d >> 1;
       result.exp = 127 + d;
     } else {
