@@ -18,8 +18,7 @@ use IEEE.std_logic_misc.all;
 use IEEE.numeric_std.all;
 use IEEE.std_logic_unsigned.all;
 
-library work;
-use work.fpu_common_p.all;
+
 
 entity fsqrt is
   port ( A : in  std_logic_vector(31 downto 0);
@@ -1106,9 +1105,6 @@ begin
     variable ka,kb,temp : std_logic_vector(31 downto 0);
   begin
 
-    if (is_metavalue(A) or is_metavalue(s3) or is_metavalue(s5)) then
-      S <= (others => 'X');
-    else
       org := A;
 
       if org(31) = '1' then
@@ -1159,6 +1155,6 @@ begin
       end if;
 
       S <= result;
-    end if;
+    
   end process;
 end blackbox;
