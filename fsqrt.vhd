@@ -1075,7 +1075,7 @@ architecture blackbox of FSQRT is
          S : out std_logic_vector(31 downto 0));
   end component;
 
-  constant nan   : std_logic_vector(31 downto 0) := x"7fffffff";
+  constant nan   : std_logic_vector(31 downto 0) := x"7fffffff";  --should be packaged
   constant nnan  : std_logic_vector(31 downto 0) := x"ffc00000";
   constant zero  : std_logic_vector(31 downto 0) := x"00000000";
   constant nzero : std_logic_vector(31 downto 0) := x"80000000";
@@ -1117,7 +1117,7 @@ begin
         else
           result := nnan;
         end if;
-      elsif org(30 downto 23) = 0 then
+      elsif org(30 downto 23) = 0 then  -- consider denormalized number as ZERO
         result := zero;
       elsif org(30 downto 23) = 255 and org(22 downto 0) /= 0 then
         result := nan;
