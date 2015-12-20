@@ -29,3 +29,9 @@ int round_even_carry(unsigned int num) {
   else
     return 0;
 }
+
+//  num[31]...num[0] について　num[left]...num[right] を切り取る
+unsigned int cut_uint32(unsigned int num, int left,int right){
+  unsigned int d = (((1u << (left + 1)) - 1) & num) >> right;
+  return d;
+}
