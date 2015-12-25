@@ -1,15 +1,15 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 
-package fmul_p is
+--package fmul_p is
 
-  component fmul is
-    port (
-      a, b : in std_logic_vector(31 downto 0);
-      s    : out std_logic_vector(31 downto 0));
-  end component;
+--  component fmul is
+--    port (
+--      a, b : in std_logic_vector(31 downto 0);
+--      s    : out std_logic_vector(31 downto 0));
+--  end component;
 
-end package;
+--end package;
 
 
 library IEEE;
