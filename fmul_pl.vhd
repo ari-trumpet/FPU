@@ -2,28 +2,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-package fmul_pipeline_p is
-
-  component fmul_pipeline is
-    port (
-      clk   : in  std_logic;
-      xrst  : in  std_logic;
-      stall : in  std_logic;
-      a     : in  unsigned(31 downto 0);
-      b     : in  unsigned(31 downto 0);
-      s     : out unsigned(31 downto 0));
-  end component fmul_pipeline;
-
-end package fmul_pipeline_p;
-
 
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-
-library work;
-use work.fpu_common_p.all;
-use work.fmul_pipeline_p.all;
 
 entity fmul_pipeline is
   port (
