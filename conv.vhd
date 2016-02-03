@@ -79,12 +79,12 @@ begin
     variable exp    : unsigned(7 downto 0); 
   begin
   if msb_1 < 24 then  -- 誤差が出ない場合の処理
-    frac := shift_left(frac23_1(22 downto 0), 23 - msb_1);
+    frac := shift_left(frac_1(22 downto 0), 23 - msb_1);
     exp  := unsigned(exp_1);
   else
-    frac25 := shit_right(frac_1(24 downto 0), msb_1 - 24);
+    frac25 := shift_right(frac_1(24 downto 0), msb_1 - 24);
     if frac25(0) = '1' then                        -- 0.1ulp = '1'で切り上げる場合
-      if frac25 = 25bitall1 then                     -- 切り上げで桁上がりが生じる場合
+      if frac25 = '1' & x"ffffff" then                     -- 切り上げで桁上がりが生じる場合
         frac := "000" & x"00000";
         exp  := unsigned(exp_1) + 1;
       else                                           -- 切り上げで桁上がりが生じない場合
@@ -98,7 +98,7 @@ begin
       
   
   end if;
-  s <= sign_1 & exp & frac;  -- 異なる型同士を連接可能？
+  s <= sign_1 & std_logic_vector(exp) & std_logic_vector(frac);  -- 異なる型同士を連接可能？
   end process; 
 
 end architecture behavior;
