@@ -2,174 +2,192 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+entity fmul_pl is
+    port (
+        clk : in std_logic;
+        input_1 : in  std_logic_vector(31 downto 0);
+        input_2 : in  std_logic_vector(31 downto 0);
+        output : out std_logic_vector(31 downto 0));
+end fmul_pl;
 
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+architecture dataflow_pipeline of fmul_pl is
 
-entity fmul_pipeline is
-  port (
-    clk   : in  std_logic;
-    xrst  : in  std_logic;
-    stall : in  std_logic;
-    a     : in  unsigned(31 downto 0);
-    b     : in  unsigned(31 downto 0);
-    s     : out unsigned(31 downto 0));
-end entity fmul_pipeline;
+    function round_even_26bit(n: unsigned(25 downto 0))
+    return unsigned is
+    variable right4: unsigned(3 downto 0);
+     begin
 
-architecture behavior of fmul_pipeline is
+     right4 := n(3 downto 0);
 
-  type state_t is (CORNER, NORMAL);
+     if (4 < right4 and right4 < 8) or 11 < right4 then
+       return n(25 downto 3) + 1;
+     else
+       return n(25 downto 3);
+     end if;
 
-  type latch_t is record
-    -- stage 1
-    state0 : state_t;
-    data0  : fpu_data_t;
-    sign0  : unsigned(31 downto 31);
-    exp0   : unsigned(8 downto 0);
-    afrac  : unsigned(22 downto 0);
-    bfrac  : unsigned(22 downto 0);
-    -- stage 2
-    state1 : state_t;
-    data1  : fpu_data_t;
-    sign1  : unsigned(31 downto 31);
-    exp1   : unsigned(8 downto 0);
-    frac   : unsigned(22 downto 0);
-  end record latch_t;
+    end function;
 
-  constant latch_init : latch_t := (
-    state0 => CORNER,
-    data0  => (others => '0'),
-    sign0  => (others => '0'),
-    exp0   => (others => '0'),
-    afrac  => (others => '0'),
-    bfrac  => (others => '0'),
-    state1 => CORNER,
-    data1  => (others => '0'),
-    sign1  => (others => '0'),
-    exp1   => (others => '0'),
-    frac   => (others => '0'));
+    signal s0_sgn1, s0_sgn2, s0_sgnout   : std_logic;
+    signal s0_exp1, s0_exp2   : unsigned(8 downto 0);
+    signal s0_frac1, s0_frac2 : unsigned(22 downto 0);
+    signal s0_nan1, s0_nan2   : std_logic;
+    signal s0_inf             : std_logic;
+    signal s0_zero            : std_logic;
+    signal s0_expbuff         : unsigned(9 downto 0);
+    signal s0_hh              : unsigned(27 downto 0);
+    signal s0_hl, s0_lh       : unsigned(23 downto 0);
+    
+    signal s1_nan             : std_logic;
+    signal s1_inf             : std_logic;
+    signal s1_zero            : std_logic;
+    signal s1_sgnout          : std_logic;
+    signal s1_expbuff         : unsigned(9 downto 0);
+    signal s1_hh              : unsigned(27 downto 0);
+    signal s1_hl, s1_lh       : unsigned(13 downto 0);
+    signal s1_product         : unsigned(27 downto 0);
+    
+    signal s2_nan             : std_logic;
+    signal s2_inf             : std_logic;
+    signal s2_zero            : std_logic;
+    signal s2_sgnout          : std_logic;
+    signal s2_expbuff         : unsigned(9 downto 0);
+    signal s2_product         : unsigned(27 downto 0);
 
-  signal r, rin : latch_t := latch_init;
+    signal sgn                : std_logic;
+    signal exp                : unsigned(7 downto 0);
+    signal frac               : unsigned(22 downto 0);
+    
 
 begin
-
-  comb: process (r, a, b, stall) is
-
-    variable v: latch_t;
-
-    -- stage 1
-    variable fa      : float_t;
-    variable fb      : float_t;
-    -- stage 2
-    variable a_mant  : unsigned(23 downto 0);
-    variable b_hmant : unsigned(11 downto 0);
-    variable b_lmant : unsigned(11 downto 0);
-    variable product : unsigned(24 downto 0);
-    variable mant    : unsigned(25 downto 0);
-    -- stage 3
-    variable exp     : unsigned(8 downto 0);
-    variable result  : float_t;
-
-
-  begin
-    v      := r;
-    result := float(x"00000000");
-
-    if stall /= '1' then
-      -- stage 1
-      if is_metavalue(a) or is_metavalue(b) then
-        fa := float(x"00000000");
-        fb := float(x"00000000");
-      else
-        fa := float(a);
-        fb := float(b);
-      end if;
-
-      v.state0 := CORNER;
-      v.data0  := (others => '-');
-
-      if (fa.expt = 255 and fa.frac /= 0) or
-        (fb.expt = 255 and fb.frac /= 0) then
-        v.data0 := VAL_NAN;
-      elsif (fa.expt = 255 and fb.expt = 0) or
-        (fa.expt = 0 and fb.expt = 255) then
-        v.data0 := VAL_NAN;
-      elsif fa.expt = 255 or fb.expt = 255 then
-        if fa.sign = fb.sign then
-          v.data0 := VAL_PLUS_INF;
-        else
-          v.data0 := VAL_MINUS_INF;
+    
+    latch0 : process(clk)
+    begin
+        if rising_edge(clk) then
+            s0_sgn1  <= input_1(31);
+            s0_exp1  <= unsigned(input_1(30 downto 23));
+            s0_frac1 <= unsigned(input_1(22 downto 0));
+            s0_sgn2  <= input_2(31);
+            s0_exp2  <= unsigned(input_2(30 downto 23));
+            s0_frac2 <= unsigned(input_2(22 downto 0));
         end if;
-      elsif fa.expt = 0 or fb.expt = 0 then
-        if fa.sign = fb.sign then
-          v.data0 := VAL_PLUS_ZERO;
-        else
-          v.data0 := VAL_MINUS_ZERO;
+    end process;
+
+
+    seq0 : process(s0_sgn1, s0_sgn2, s0_exp1, s0_exp2, s0_frac1, s0_frac2)
+    begin
+      if    s0_exp1 = x"ff" and s0_frac1 /= 0 then   -- nan * hoge の処理
+        s0_nan1 <= '1';
+      elsif s0_exp2 = x"ff" and s0_frac2 /= 0 then
+        s0_nan1 <= '1';
+      else 
+        s0_nan1 <= '0';
+      end if;
+      
+      if s0_exp1 = x"ff" and s0_exp2 = x"00" then   -- zero * +-inf の処理
+        s0_nan2 <= '1';
+      elsif s0_exp1 = x"00" and s0_exp2 = x"ff" then
+        s0_nan2 <= '1';
+      else
+        s0_nan2 <= '0';
+      end if;
+      
+      if s0_exp1 = x"ff" then                        -- +-inf * hoge の処理
+        s0_inf <= '1';
+      elsif s0_exp2 = x"ff" then  -- or を取れば良い？ひげが出ないか一考
+        s0_inf <= '1';
+      else
+        s0_inf <= '0';
+      end if;
+      
+      if s0_exp1 = x"00" then                        -- zero * hoge の処理
+        s0_zero <= '1';
+      elsif s0_exp2 = x"00" then
+        s0_zero <= '1';
+      else
+        s0_zero <= '0';
+      end if;
+                                                      -- ※これらの例外処理は背反事象でないので後の処理の順番に注意
+      s0_sgnout  <= s0_sgn1 xor s0_sgn2;
+      s0_expbuff <= unsigned("00" & s0_exp1(7 downto 0)) + unsigned("00" & s0_exp2(7 downto 0)) - "0000000010";  -- 違いそう
+      s0_hh      <= unsigned('1' & s0_frac1(22 downto 10)) * unsigned('1' & s0_frac2(22 downto 10));
+      s0_hl      <= unsigned('1' & s0_frac1(22 downto 10)) * unsigned(s0_frac2(9 downto 0));
+      s0_lh      <= unsigned(s0_frac1(9 downto 0)) * unsigned('1' & s0_frac2(22 downto 10));
+
+    end process;
+
+
+    latch1 : process(clk)
+    begin
+        if rising_edge(clk) then
+            s1_nan   <= s0_nan1 and s0_nan2;
+            s1_inf    <= s0_inf;
+            s1_zero   <= s0_zero;
+            s1_sgnout <= s0_sgnout;
+            s1_expbuff <= s0_expbuff;
+            s1_hh      <= s0_hh;
+            s1_hl      <= s0_hl(23 downto 10);
+            s1_lh      <= s0_lh(23 downto 10);
         end if;
-      else
-        v.state0 := NORMAL;
+    end process;
+
+    seq1 : process(s1_hh, s1_hl, s1_lh)
+    begin
+      s1_product <= ((unsigned(s1_hh(27 downto 0)) + unsigned(x"000" & "00" & s1_hl(13 downto 0))) + unsigned(x"000" & "00" & s1_lh(13 downto 0))) + x"0000002";  -- 怪しい
+    end process;
+    
+    latch2 : process(clk)
+    begin
+      if rising_edge(clk) then
+           s2_nan    <= s1_nan;
+           s2_inf     <= s1_inf;
+           s2_zero    <= s1_zero;
+           s2_sgnout  <= s1_sgnout;
+           s2_expbuff <= s1_expbuff;
+           s2_product <= s1_product;
       end if;
+    end process;
+           
+    seq2 : process(s2_nan, s2_inf, s2_zero, s2_sgnout, s2_expbuff, s2_product)
+      variable frac_buff : unsigned(22 downto 0);
+      variable exp_buff  : unsigned(9 downto 0);
+    begin
+     if s2_nan = '1' then
+       sgn  <= '0';
+       exp  <= x"ff";
+       frac <= "111" & x"fffff";
+     elsif s2_inf = '1' then
+       sgn  <= s2_sgnout;
+       exp  <= x"ff";
+       frac <= "000" & x"00000";
+     elsif s2_zero = '1' then
+       sgn  <= s2_sgnout;
+       exp  <= x"00";
+       frac <= "000" & x"00000";
+     else
+       sgn <= s2_sgnout;
+       if s2_product(27) = '1' then      -- 繰り上がりあり
+         frac_buff := round_even_26bit(s2_product(26 downto 1));
+         exp_buff  := s2_expbuff + 1;
+       else
+         frac_buff := round_even_26bit(s2_product(25 downto 0));
+         exp_buff  := s2_expbuff;
+       end if;
+      
+       if exp_buff > 254 then
+         exp  <= x"ff";
+         frac <= "000" & x"00000";
+       elsif exp_buff < 1 then
+         exp  <= x"00";
+         frac <= "000" & x"00000";
+       else
+         exp  <= exp_buff(7 downto 0);
+         frac <= frac_buff;
+       end if;
+     end if;   
+      
+      output <= std_logic_vector(sgn & exp & frac);
+        
+    end process;
 
-      v.afrac := fa.frac;
-      v.bfrac := fb.frac;
 
-      v.sign0 := fa.sign xor fb.sign;
-      v.exp0  := resize(fa.expt, 9) + resize(fb.expt, 9);
-
-      -- stage 2
-      v.state1 := r.state0;
-      v.data1  := r.data0;
-      v.sign1  := r.sign0;
-
-      a_mant  := '1' & r.afrac;
-      b_hmant := '1' & r.bfrac(22 downto 12);
-      b_lmant := r.bfrac(11 downto 0);
-
-      product := resize(shift_right(a_mant * b_hmant, 11), 25) + resize(shift_right(a_mant * b_lmant, 23), 25) + 1;
-
-      v.exp1 := r.exp0 + product(24 downto 24);
-
-      if product(24) = '1' then
-        v.frac := product(23 downto 1);
-      else
-        v.frac := product(22 downto 0);
-      end if;
-
-      -- stage 3
-      result.sign := r.sign1;
-
-      if r.exp1 > 127 then
-        if r.exp1 > 381 then
-          result.expt := to_unsigned(255, 8);
-          result.frac := to_unsigned(0, 23);
-        else
-          exp := r.exp1 - 127;
-          result.expt := exp(7 downto 0);
-          result.frac := r.frac;
-        end if;
-      else
-        result.expt := to_unsigned(0, 8);
-        result.frac := to_unsigned(0, 23);
-      end if;
-    end if;
-
-    case r.state1 is
-      when CORNER => s <= r.data1;
-      when NORMAL => s <= fpu_data(result);
-    end case;
-
-    rin <= v;
-  end process comb;
-
-  seq: process (clk, xrst) is
-  begin
-    if xrst = '0' then
-      r <= latch_init;
-    elsif rising_edge(clk) then
-      r <= rin;
-    end if;
-  end process seq;
-
-end architecture behavior;
-
+end dataflow_pipeline;
