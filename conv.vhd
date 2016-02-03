@@ -17,6 +17,7 @@ architecture behavior of itof_pl is
   constant zero    : std_logic_vector(31 downto 0) := x"00000000";
   constant nintmax : std_logic_vector(31 downto 0) := x"80000000";
   
+  signal a_0            : std_logic_vector(31 downto 0);
   signal intbody_0      : std_logic_vector(30 downto 0);
   signal ifzero_1, ifzero_0 : std_logic;
   signal ifnmax_1, ifnmax_0 : std_logic;
@@ -38,22 +39,23 @@ begin
   latch0 : process(clk)
   begin
     if rising_edge(clk) then
-      sign_0 <= a(31);
+      a_0       <= a(31 downto 0);
+      sign_0    <= a(31);
       intbody_0 <= a(30 downto 0);
     end if;
   end process;
   
-  seq0 : process( sign_0, intbody_0, frac_0,msb_0)
+  seq0 : process( sign_0, intbody_0, frac_0, msb_0)
     variable frac_buff : unsigned(31 downto 0);
   begin
   
-  if sign_0 & intbody_0 = zero then  -- 0 の場合の処理
+  if a_0 = zero then  -- 0 の場合の処理
     ifzero_0 <= '1';
   else 
     ifzero_0 <= '0';
   end if;
   
-  if sign_0 & intbody_0 = nintmax then  -- nintmaxの場合の処理
+  if a_0 = nintmax then  -- nintmaxの場合の処理
     ifnmax_0 <= '1';
   else
     ifnmax_0 <= '0';
