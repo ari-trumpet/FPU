@@ -28,7 +28,7 @@ architecture dataflow_pipeline of fmul_pl is
     end function;
 
     signal s0_sgn1, s0_sgn2, s0_sgnout   : std_logic;
-    signal s0_exp1, s0_exp2   : unsigned(8 downto 0);
+    signal s0_exp1, s0_exp2   : unsigned(7 downto 0);
     signal s0_frac1, s0_frac2 : unsigned(22 downto 0);
     signal s0_nan1, s0_nan2   : std_logic;
     signal s0_inf             : std_logic;
@@ -119,7 +119,7 @@ begin
     latch1 : process(clk)
     begin
         if rising_edge(clk) then
-            s1_nan   <= s0_nan1 and s0_nan2;
+            s1_nan   <= s0_nan1 or s0_nan2;
             s1_inf    <= s0_inf;
             s1_zero   <= s0_zero;
             s1_sgnout <= s0_sgnout;
