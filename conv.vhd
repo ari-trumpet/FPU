@@ -27,33 +27,43 @@ architecture behavior of itof_pl is
 
 begin
 
-  latch0: process (clk)
+  --seq0: process (a)
+  --begin
+  --   if rising_edge(clk) then
+  --    sign_0 <= a(31);
+  --    intbody_0 <= a(30 downto 0);  
+  --   end if;
+  --end process;
+  
+  latch0 : process(clk)
   begin
-     if rising_edge(clk) then
+    if rising_edge(clk) then
       sign_0 <= a(31);
-      intbody_0 <= a(30 downto 0);  
-     end if;
+      intbody_0 <= a(30 downto 0);
+    end if;
   end process;
   
-  seq0 : process(a, sign_0, intbody_0, frac_0,msb_0)
+  seq0 : process( sign_0, intbody_0, frac_0,msb_0)
+    variable frac_buff : unsigned(31 downto 0);
   begin
   
-  if a = zero then  -- 0 の場合の処理
+  if sign_0 & intbody_0 = zero then  -- 0 の場合の処理
     ifzero_0 <= '1';
   else 
     ifzero_0 <= '0';
   end if;
   
-  if a = nintmax then  -- nintmaxの場合の処理
+  if sign_0 & intbody_0 = nintmax then  -- nintmaxの場合の処理
     ifnmax_0 <= '1';
   else
     ifnmax_0 <= '0';
   end if;
   
-  if sign_0 = '0' then  -- 負数を正数に変換
+  if sign_0 = '0' then  -- 正数
     frac_0 <= unsigned(intbody_0);
-  else
-    frac_0 <= unsigned(- signed(intbody_0));
+  else                  -- 負数を正数に変換
+   -- frac_buff := '0'& unsigned(- signed(intbody_0)); --sign_0 & intbody_0));
+    frac_0    <= unsigned(- signed(intbody_0)); --frac_buff(30 downto 0);  
   end if;
   
   msb_0 <= leading_zero_negative(frac_0);
@@ -76,29 +86,37 @@ begin
   seq1 : process(ifzero_1, ifnmax_1, sign_1, exp_1, frac_1, msb_1)
     variable frac   : unsigned(22 downto 0);
     variable frac25 : unsigned(24 downto 0);
+    variable frac25_buff : unsigned(30 downto 0);
     variable exp    : unsigned(7 downto 0); 
   begin
-  if msb_1 < 24 then  -- 誤差が出ない場合の処理
-    frac := shift_left(frac_1(22 downto 0), 23 - msb_1);
-    exp  := unsigned(exp_1);
+  if ifzero_1 = '1' then
+    exp    := x"00";
+    frac   := "000" & x"00000";
+  elsif ifnmax_1 = '1' then
+    exp    := x"9E";
+    frac   := "000" & x"00000";
   else
-    frac25 := shift_right(frac_1(24 downto 0), msb_1 - 24);
-    if frac25(0) = '1' then                        -- 0.1ulp = '1'で切り上げる場合
-      if frac25 = '1' & x"ffffff" then                     -- 切り上げで桁上がりが生じる場合
-        frac := "000" & x"00000";
-        exp  := unsigned(exp_1) + 1;
-      else                                           -- 切り上げで桁上がりが生じない場合
-        frac := unsigned(frac25(23 downto 1)) + 1;
-        exp  := unsigned(exp_1);
-      end if;
-    else                                           -- 0.1ulp = '0'で切り捨てる場合
-        frac := unsigned(frac25(23 downto 1));
-        exp  := unsigned(exp_1);
+    if msb_1 < 24 then  -- 誤差が出ない場合の処理
+      frac := shift_left(frac_1(22 downto 0), 23 - msb_1);
+      exp  := unsigned(exp_1);
+    else
+      frac25_buff := shift_right(frac_1, msb_1 - 24);  -- 1.xxx + 0.1ulp切り取り
+      frac25      := frac25_buff(24 downto 0);
+      if frac25(0) = '1' then                        -- 0.1ulp = '1'で切り上げる場合
+        if frac25 = '1' & x"ffffff" then                     -- 切り上げで桁上がりが生じる場合
+          frac := "000" & x"00000";
+          exp  := unsigned(exp_1) + 1;
+        else                                           -- 切り上げで桁上がりが生じない場合
+          frac := unsigned(frac25(23 downto 1)) + 1;
+          exp  := unsigned(exp_1);
+        end if;
+      else                                           -- 0.1ulp = '0'で切り捨てる場合
+          frac := unsigned(frac25(23 downto 1));
+          exp  := unsigned(exp_1);
+      end if;      
     end if;
-      
-  
   end if;
-  s <= sign_1 & std_logic_vector(exp) & std_logic_vector(frac);  -- 異なる型同士を連接可能？
+  s <= std_logic_vector(sign_1 & exp & frac);  -- 異なる型同士を連接可能？
   end process; 
 
 end architecture behavior;
