@@ -2,6 +2,9 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+library work;
+use work.fpu_common_p.all;
+
 entity fmul_pl is
     port (
         clk : in std_logic;
@@ -12,20 +15,20 @@ end fmul_pl;
 
 architecture dataflow_pipeline of fmul_pl is
 
-    function round_even_26bit(n: unsigned(25 downto 0))
-    return unsigned is
-    variable right4: unsigned(3 downto 0);
-     begin
-
-     right4 := n(3 downto 0);
-
-     if (4 < right4 and right4 < 8) or 11 < right4 then
-       return n(25 downto 3) + 1;
-     else
-       return n(25 downto 3);
-     end if;
-
-    end function;
+--    function round_even_26bit(n: unsigned(25 downto 0))
+--    return unsigned is
+--    variable right4: unsigned(3 downto 0);
+--     begin
+--
+--     right4 := n(3 downto 0);
+--
+--     if (4 < right4 and right4 < 8) or 11 < right4 then
+--       return n(25 downto 3) + 1;
+--     else
+--       return n(25 downto 3);
+--     end if;
+--
+--    end function;
 
     signal s0_sgn1, s0_sgn2, s0_sgnout   : std_logic;
     signal s0_exp1, s0_exp2   : unsigned(7 downto 0);
@@ -106,10 +109,10 @@ begin
       else
         s0_zero <= '0';
       end if;
-                                                      -- ※これらの例外処理は背反事象でないので後の処理の順番に注意
+                                                      -- ※これらの例外は背反事象でないので後の処理の順番に注意
       s0_sgnout  <= s0_sgn1 xor s0_sgn2;
-      s0_expbuff <= unsigned("00" & s0_exp1(7 downto 0)) + unsigned("00" & s0_exp2(7 downto 0)) - "0000000010";  -- 違いそう
-      s0_hh      <= unsigned('1' & s0_frac1(22 downto 10)) * unsigned('1' & s0_frac2(22 downto 10));
+      s0_expbuff <= (unsigned("00" & s0_exp1(7 downto 0)) + unsigned("00" & s0_exp2(7 downto 0))) - 127;  -- 合ってる
+      s0_hh      <= unsigned('1' & s0_frac1(22 downto 10)) * unsigned('1' & s0_frac2(22 downto 10));    -- 
       s0_hl      <= unsigned('1' & s0_frac1(22 downto 10)) * unsigned(s0_frac2(9 downto 0));
       s0_lh      <= unsigned(s0_frac1(9 downto 0)) * unsigned('1' & s0_frac2(22 downto 10));
 
@@ -132,7 +135,7 @@ begin
 
     seq1 : process(s1_hh, s1_hl, s1_lh)
     begin
-      s1_product <= ((unsigned(s1_hh(27 downto 0)) + unsigned(x"000" & "00" & s1_hl(13 downto 0))) + unsigned(x"000" & "00" & s1_lh(13 downto 0))) + x"0000002";  -- 怪しい
+      s1_product <= ((s1_hh(27 downto 0) + (x"000" & "00" & s1_hl(13 downto 0))) + (x"000" & "00" & s1_lh(13 downto 0))) + 2;  -- 怪しい
     end process;
     
     latch2 : process(clk)
@@ -147,7 +150,7 @@ begin
       end if;
     end process;
            
-    seq2 : process(s2_nan, s2_inf, s2_zero, s2_sgnout, s2_expbuff, s2_product)
+    seq2 : process(s2_nan, s2_inf, s2_zero, s2_sgnout, s2_expbuff, s2_product, sgn, exp, frac)
       variable frac_buff : unsigned(22 downto 0);
       variable exp_buff  : unsigned(9 downto 0);
     begin
@@ -173,17 +176,17 @@ begin
          exp_buff  := s2_expbuff;
        end if;
       
-       if exp_buff > 254 then
+       if signed(exp_buff) > 254 then
          exp  <= x"ff";
          frac <= "000" & x"00000";
-       elsif exp_buff < 1 then
+       elsif signed(exp_buff) < 1 then
          exp  <= x"00";
          frac <= "000" & x"00000";
        else
          exp  <= exp_buff(7 downto 0);
          frac <= frac_buff;
        end if;
-     end if;   
+     end if;
       
       output <= std_logic_vector(sgn & exp & frac);
         
