@@ -1,4 +1,4 @@
-/* コンパイル時　gcc fsqrttable.c fsqrt.c -lm */
+/* コンパイル時　gcc finvtable.c finv.c -lm */
 
 #include <stdio.h>
 #include <stdint.h>
@@ -7,133 +7,103 @@
 #include "def.h"
 #include "table.h"
 
-#define MAX      512  // 1 ~ 2, 2 ~ 4 をそれぞれ512分割(計1024分割)
-#define MASK9    8372224 //((1 << 9) - 1) << 14 精度を変更する場合注意
-#define MASK10   8380416 //((1 << 10) - 1) << 13  精度を変更する場合注意
-#define NEGNAN   4294967295u
-#define MASK14   16383u
+#define MAX 2048
+#define MASK11 8384512  //((1 << 11) - 1) << 12
+#define MASK10 8380416
 
-uint32_t fadd(uint32_t a, uint32_t b);
+//uint32_t fadd(uint32_t a, uint32_t b);
 
-uint32_t fmul(uint32_t a, uint32_t b);
+//uint32_t fmul(uint32_t a, uint32_t b);
 
-unsigned int makevhd_ab(unsigned int key, int aorb);
 
 static double make_a(double t, double c) {
   double a;
-  a = 1 / (sqrt(t+c) + sqrt(t));
+  a = 1 / (t * (t+c));
   return a;
 }
 
-static double make_b(double t, double c) {
+static double make_b(double t, double c) {  //テーブル化する部分
   double b, temp;
-  temp = (2 * make_a(t,c) * sqrt(t)) - 1;
-  b = (2 - temp * temp) / (8 * make_a(t,c));
+  temp = sqrt(1/t) + sqrt(1/(t+c));
+  b = (temp * temp) / 2;
   return b;
 }
 
-uint32_t fsqrt(uint32_t org) {
-  double a_db, b_db, c, t;
-  union data_32bit a, b, x, result, original, temp;
+uint32_t finv(uint32_t org) {   
+  double a_db,b_db,c,t;
+  unsigned int index, tmp, t1;
+  union data_32bit a,b,fraction,result,original;
   int d;
-  unsigned int index, tmp, t1; //どのグループに属するかを示す値(1<x<4を0~2^10-1に割り当てる)
   
   original.uint32 = org;
-  if (original.sign == 1) {
-    if (original.exp == 0) {
-      result.uint32 = NZERO;  // -0 -> -0 (非正規化数も含む)
-    } else {
-      result.uint32 = NEGNAN;   // 負の数 -> -nan
-    }
-  } else if (original.exp == 0) {
-    result.uint32 = ZERO;  // 0 -> 0 (非正規化数も含む)
-  } else if (original.exp == 255 && original.frac != 0) {
-    result.uint32 = MY_NAN; // nan -> nan
+
+  if (original.exp == 255 && original.frac != 0) {
+    result.sign = 0;
+    result.exp  = 255;
+    result.frac = FRAC_MAX; // NaN -> NaN
+  } else if (original.sign == 0 && original.exp == 0) {
+    result.uint32 = INF;    //非正規仮数(正)は0として処理。要修正
+  } else if (original.sign == 1 && original.exp == 0) {
+    result.uint32 = NINF;   //非正規仮数(負)は-0として処理
   } else if (original.uint32 == INF) {
-    result.uint32 = INF;    // inf -> inf ??
+    result.uint32 = ZERO;
+  } else if (original.uint32 == NINF) {
+    result.uint32 = NZERO;
   } else {
 
-    result.sign = 0;
-    x.uint32 = original.uint32;
-              
-    if (original.exp >= 127) {
-      d = original.exp - 127;
-    } else {
-      d = 127 - original.exp;
-    }
-    
-    if ((d & 1) == 0) {
-      x.exp = 127;
-    } else {
-      x.exp = 128; // 奇数乗のとき(1.仮数部)*2 
-    }
 
-    if (original.exp >= 127) {
-      d = d >> 1;
-      result.exp = 127 + d;
+    if (original.frac == 0) {
+      result.uint32 = org;
+      if (original.exp >= 127) {
+	d = original.exp - 127;
+	result.exp = 127 - d;
+      } else {
+	d = 127 - original.exp;
+	result.exp = 127 + d;
+      }
     } else {
-      d = (d + 1) >> 1;
-      result.exp = 127 - d;
-    }
+      fraction.uint32 = org;
+      fraction.exp = 127;
+      fraction.sign = 0;
 
+/*  直線補間による逆数演算  */
 
-/* ここからテーブル引き */    
-  /* 高精度 */
-/*    index = (x.frac & MASK9) >> 14;
-    if ((x.exp & 1) == 0) {  // 2の奇数乗の場合 ※exp-127
-      c = 2.0 / MAX;
-      t = 2.0 + c * index;
-      index += (1 << 9);  //この３つの順番重要
-    } else {
+  /*  精度の高い方  */
+/*
       c = 1.0 / MAX;
-      t = 1.0 + c * index;
-    }
-      
-    a_db = make_a(t,c);
-    b_db = make_b(t,c);
-    a.fl32 = (float)a_db;
-    b.fl32 = (float)b_db;
+      index = (fraction.frac & MASK11) >> 12;   //テーブルサイズが11bit
+      t = 1 + (c * index);
+      a_db = make_a(t,c) * (-1);
+      b_db = make_b(t,c);
+      a.fl32 = (float)a_db;
+      b.fl32 = (float)b_db;
+      fraction.uint32 = fadd(fmul(a.uint32, fraction.uint32), b.uint32);
+*/    
 
-    temp.uint32 = fadd(fmul(a.uint32, x.uint32), b.uint32);
-    result.frac = temp.frac;
-*/
-    // ここまで
-    
-  /* vhdl版 */
-    index = ((original.exp & 1u) << 9) + ((original.frac & MASK9) >> 14);
-    tmp = makevhd_ab(index, 0) * (original.frac & MASK14);
-    t1 = tmp >> 13;
-    result.frac = makevhd_ab(index, 1) + t1;
-    
+  /*  vhdlと同じ実装  */
+      index = (/*fraction.frac*/org & MASK10) >> 13;
+      tmp = makevhd_ab(index, 0) * (original.frac & 8191u);
+      t1 = tmp >> 12;
+      fraction.frac = makevhd_ab(index, 1) - t1;
+  
+  
+      result.sign = original.sign;
+      if (original.exp >= 127) {
+	d = original.exp - 127;
+	if (d < 126) {  // d = 128:already excluded , 127,126:非正規化数->ZEROとして扱う  
+	  result.exp = 127 - d - 1;
+	  result.frac = fraction.frac;
+	} else {
+	  result.exp = 0;
+	  result.frac = 0;
+	}
+      } else {
+	d = 127 - original.exp;
+	result.exp = 127 + d - 1;
+	result.frac = fraction.frac;
+      }
+    }
   }
   return (result.uint32);
 }
 
-
-#if 0
-/* table の確認 */
-int main(void) {
-  int i;
-  double c = 3.0 / MAX;
-  double a_db, b_db, t;
-  char *a_str, *b_str;
-  union data_32bit a,b;
-  for (i = 0; i < MAX; i++) {
-    t = 1 + c * i;
-    a_db = make_a(t,c);
-    b_db = make_b(t,c);
-    a.fl32 = (float)a_db;
-    b.fl32 = (float)b_db;
-    a_str = str_32bit(a.uint32);
-    b_str = str_32bit(b.uint32);
-    
-    printf("i = %4d : [%lf, %lf] a = \"%f\", b= \"%f\"\n",
-	   i, t, t+c, a.fl32, b.fl32);
-    /*
-    printf("i = %4d : [%lf, %lf] a = \"%s\", b= \"%s\"\n",
-	   i, t, t+c, a_str, b_str);
-    */
-  }
-  return 0;
-}
-#endif
