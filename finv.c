@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "def.h"
+#include "finvtable.h"
 //#include "table.h"
 
 #define MAX 2048
