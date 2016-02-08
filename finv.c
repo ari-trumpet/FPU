@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "def.h"
-#include "table.h"
+//#include "table.h"
 
 #define MAX 2048
 #define MASK11 8384512  //((1 << 11) - 1) << 12
