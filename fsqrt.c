@@ -13,9 +13,9 @@
 #define NEGNAN   4294967295u
 #define MASK14   16383u
 
-uint32_t fadd(uint32_t a, uint32_t b);
+//uint32_t fadd(uint32_t a, uint32_t b);
 
-uint32_t fmul(uint32_t a, uint32_t b);
+//uint32_t fmul(uint32_t a, uint32_t b);
 
 unsigned int makevhd_ab(unsigned int key, int aorb);
 
