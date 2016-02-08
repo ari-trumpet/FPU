@@ -27,11 +27,6 @@ union data_32bit {
   uint32_t uint32;
 };
 
-unsigned int makevhd_a(const char *table);
-
-unsigned int makevhd_b(const char *table);
-
-unsigned int makevhd_ab(unsigned int key, int aorb);
 
 // 下からnbitのORをとる 返り値0or1 
 int or_nbit(unsigned int num, int n);
