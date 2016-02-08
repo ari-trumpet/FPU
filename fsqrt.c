@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "def.h"
+#include "fsqrttable.h"
 //#include "table.h"
 
 #define MAX      512  // 1 ~ 2, 2 ~ 4 をそれぞれ512分割(計1024分割)
