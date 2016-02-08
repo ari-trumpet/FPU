@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "def.h"
-#include "table.h"
+//#include "table.h"
 
 #define MAX      512  // 1 ~ 2, 2 ~ 4 をそれぞれ512分割(計1024分割)
 #define MASK9    8372224 //((1 << 9) - 1) << 14 精度を変更する場合注意
