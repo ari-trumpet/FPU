@@ -1038,10 +1038,10 @@ x"69AF58B52",
 x"69DCA4B51");
 
 begin
-    process(clk)
+    process(key)
     begin
-        if rising_edge(clk) then
+       -- if rising_edge(clk) then
             tout <= table(to_integer(unsigned(key)));
-        end if;
+       -- end if;
     end process;
 end behavioral;
