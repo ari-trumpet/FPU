@@ -1,4 +1,4 @@
-#include "table.h"
+#include "def.h"
 
 //#ifndef FINVTABLE_H
 //#define FINVTABLE_H
