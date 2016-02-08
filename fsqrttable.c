@@ -1,4 +1,4 @@
-#include "table.h"
+#include "def.h"
 
 //#ifndef FSQRTTABLE_H
 //#define FSQRTTABLE_H
