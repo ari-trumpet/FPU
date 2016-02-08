@@ -25,6 +25,8 @@ architecture twoproc_pipeline of fsqrt_pl is
     signal a0, a0_p : unsigned(22 downto 0) := (others => '0');
     signal t1, t1_p : unsigned(22 downto 0) := (others => '0');
     signal mant_in, mant_p : unsigned(22 downto 0) := (others => '0');
+    signal nan,minuszero : std_logic := '0';
+    signal toutbuff : std_logic_vector(35 downto 0);
 
 begin
     seq_0 : process(input)
@@ -40,15 +42,16 @@ begin
             exp_in <= unsigned(input(30 downto 23));
             rest <= unsigned(input(13 downto 0));
             mant_in <= unsigned(input(22 downto 0));
+            toutbuff <= tout;
         end if;
     end process;
 
-    seq_1 : process(tout, rest)
+    seq_1 : process(toutbuff, rest)
         variable a1 : unsigned(12 downto 0);
         variable tmp : unsigned(26 downto 0);
     begin
-        a0 <= unsigned(tout(35 downto 13));
-        a1 := unsigned(tout(12 downto  0));
+        a0 <= unsigned(toutbuff(35 downto 13));
+        a1 := unsigned(toutbuff(12 downto  0));
         tmp := a1 * rest;
         t1 <= "000000000" & tmp(26 downto 13);
     end process;
@@ -68,6 +71,15 @@ begin
         variable exp_out : unsigned(7 downto 0);
         variable frc_out : unsigned(22 downto 0);
     begin
+      if sgn_in_p = '1' then
+        if exp_in_p = x"00" then
+          exp_out := x"00";
+          frc_out := "000" & x"00000";
+        else
+          exp_out := x"FF";
+          frc_out := "111" & x"FFFFF";
+        end if;
+      else
         if exp_in_p = x"00" then
             exp_out := x"00";
             frc_out := (others => '0');
@@ -82,9 +94,10 @@ begin
               frc_out := "111" & x"FFFFF";
             end if;
         else 
-            exp_out := x"3F" + ("0" & exp_in_p(7 downto 1)) + unsigned'(0 => exp_in_p(0));
+            exp_out := x"3F" + ("0" & exp_in_p(7 downto 1)) + unsigned'(0 => exp_in_p(0));  -- expが偶数:+0,奇数:+1
             frc_out := a0_p + t1_p;
         end if;
+      end if;
         output <= std_logic_vector(sgn_in_p & exp_out & frc_out);
     end process;
 
