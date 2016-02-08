@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <math.h>
 
 #ifndef DEF_H
 #define DEF_H
 
-#define FRAC_MAX 8388607 // 2^23
+#define FRAC_MAX 8388607 // 23bit all 1
 #define ZERO     0u
 #define NZERO    2147483648u
 #define INF      2139095040u
@@ -26,6 +27,11 @@ union data_32bit {
   uint32_t uint32;
 };
 
+unsigned int makevhd_a(const char *table);
+
+unsigned int makevhd_b(const char *table);
+
+unsigned int makevhd_ab(unsigned int key, int aorb);
 
 // 下からnbitのORをとる 返り値0or1 
 int or_nbit(unsigned int num, int n);
