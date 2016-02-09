@@ -16,6 +16,8 @@ end fmul_pl;
 
 architecture dataflow_pipeline of fmul_pl is
 
+    subtype ninebit is integer range 0 to 510;
+
     signal s0_sgn1, s0_sgn2, s0_sgnout   : std_logic;
     signal s0_exp1, s0_exp2   : unsigned(7 downto 0);
     signal s0_frac1, s0_frac2 : unsigned(22 downto 0);
@@ -29,8 +31,8 @@ architecture dataflow_pipeline of fmul_pl is
     signal s1_inf             : std_logic;
     signal s1_zero            : std_logic;
     signal s1_sgnout          : std_logic;
-    signal s1_exp1, s1_exp2   : unsigned(8 downto 0);
-    signal s1_addexp          : unsigned(8 downto 0) := "000000000";
+    signal s1_exp1, s1_exp2   : unsigned(7 downto 0);
+--    signal s1_addexp          : unsigned(8 downto 0) := "000000000";
     signal s1_hh              : unsigned(27 downto 0);
     signal s1_hl, s1_lh       : unsigned(13 downto 0);
     signal s1_product         : unsigned(27 downto 0);
@@ -40,13 +42,17 @@ architecture dataflow_pipeline of fmul_pl is
     signal s2_zero            : std_logic;
     signal s2_sgnout          : std_logic;
     signal s2_product         : unsigned(27 downto 0);
-    signal s2_addexp          : unsigned(8 downto 0) := "000000000";
+--    signal s2_addexp          : unsigned(8 downto 0) := "000000000";
 
     signal sgn                : std_logic;
     signal exp                : unsigned(7 downto 0);
     signal frac               : unsigned(22 downto 0);
     
-    signal exp_buff           : unsigned(8 downto 0);
+--    signal exp_buff           : unsigned(8 downto 0);
+    
+    signal s1_addexp          : ninebit;
+    signal s2_addexp          : ninebit;
+    signal exp_buff           : ninebit;
         
 begin    
     latch0 : process(input_1, input_2)
@@ -111,8 +117,8 @@ begin
             s1_inf    <= s0_inf;
             s1_zero   <= s0_zero;
             s1_sgnout <= s0_sgnout;
-            s1_exp1   <= "0" & s0_exp1(7 downto 0);
-            s1_exp2   <= "0" & s0_exp2(7 downto 0);
+            s1_exp1   <= s0_exp1;
+            s1_exp2   <= s0_exp2;
             s1_hh      <= s0_hh;
             s1_hl      <= s0_hl(23 downto 10);
             s1_lh      <= s0_lh(23 downto 10);
@@ -122,7 +128,8 @@ begin
     seq1 : process(s1_exp1, s1_exp2, s1_hh, s1_hl, s1_lh)
     begin
       s1_product <= ((s1_hh(27 downto 0) + (x"000" & "00" & s1_hl(13 downto 0))) + (x"000" & "00" & s1_lh(13 downto 0))) + 2;  -- 怪しい
-      s1_addexp <= s1_exp1(8 downto 0) + s1_exp2(8 downto 0);
+    --  s1_addexp <= unsigned("0"s1_exp1 + unsigned("0" & s1_exp2(7 downto 0));
+      s1_addexp <= TO_INTEGER(s1_exp1) + TO_INTEGER(s1_exp2);
     end process;
     
     latch2 : process(clk)
@@ -140,7 +147,7 @@ begin
     seq2 : process(s2_nan, s2_inf, s2_zero, s2_sgnout, s2_product, sgn, exp, frac, s2_addexp, exp_buff)
       variable frac_buff : unsigned(22 downto 0);
 --      variable exp_buff  : unsigned(8 downto 0);
-      variable eb        : unsigned(8 downto 0);
+      variable eb        : unsigned(7 downto 0);
     begin
      if s2_nan = '1' then
        sgn  <= '0';
@@ -166,11 +173,12 @@ begin
              
        -- exp-127 が指数部に実際に使う値
        if exp_buff > 127 then -- 指数部が正の場合
-         if (to_integer(exp_buff) - 127) > 254 then
+--         if (to_integer(exp_buff) - 127) > 254 then
+         if (exp_buff - 127) > 254 then
            exp  <= x"ff";
            frac <= "000" & x"00000";
          else
-           eb := exp_buff - 127;
+           eb := TO_UNSIGNED(exp_buff - 127, 8);
            exp <= unsigned(eb(7 downto 0));
            frac <= frac_buff;
          end if;
