@@ -16,7 +16,7 @@ end fmul_pl;
 
 architecture dataflow_pipeline of fmul_pl is
 
-    subtype ninebit is integer range 0 to 510;
+    subtype ninebit is integer range 0 to 511;
 
     signal s0_sgn1, s0_sgn2, s0_sgnout   : std_logic;
     signal s0_exp1, s0_exp2   : unsigned(7 downto 0);
@@ -26,6 +26,7 @@ architecture dataflow_pipeline of fmul_pl is
     signal s0_zero            : std_logic;
     signal s0_hh              : unsigned(27 downto 0);
     signal s0_hl, s0_lh       : unsigned(23 downto 0);
+    signal s0_nan             : std_logic;
     
     signal s1_nan             : std_logic;
     signal s1_inf             : std_logic;
@@ -68,11 +69,11 @@ begin
     end process;
 
 
-    seq0 : process(s0_sgn1, s0_sgn2, s0_exp1, s0_exp2, s0_frac1, s0_frac2)
+    seq0 : process(s0_sgn1, s0_sgn2, s0_exp1, s0_exp2, s0_frac1, s0_frac2, s0_nan1, s0_nan2)
     begin
-      if    s0_exp1 = x"ff" and s0_frac1 /= 0 then   -- nan * hoge の処理
+      if    s0_exp1 = x"ff" and s0_frac1 > 0 then   -- nan * hoge の処理
         s0_nan1 <= '1';
-      elsif s0_exp2 = x"ff" and s0_frac2 /= 0 then
+      elsif s0_exp2 = x"ff" and s0_frac2 > 0 then
         s0_nan1 <= '1';
       else 
         s0_nan1 <= '0';
@@ -106,6 +107,7 @@ begin
       s0_hh      <= unsigned('1' & s0_frac1(22 downto 10)) * unsigned('1' & s0_frac2(22 downto 10));
       s0_hl      <= unsigned('1' & s0_frac1(22 downto 10)) * unsigned(s0_frac2(9 downto 0));
       s0_lh      <= unsigned(s0_frac1(9 downto 0)) * unsigned('1' & s0_frac2(22 downto 10));
+      s0_nan     <= s0_nan1 or s0_nan2;
 
     end process;
 
@@ -113,7 +115,7 @@ begin
     latch1 : process(clk)
     begin
         if rising_edge(clk) then
-            s1_nan   <= s0_nan1 or s0_nan2;
+            s1_nan   <= s0_nan;
             s1_inf    <= s0_inf;
             s1_zero   <= s0_zero;
             s1_sgnout <= s0_sgnout;
