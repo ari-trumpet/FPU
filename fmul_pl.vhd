@@ -218,7 +218,7 @@ begin
            frac := frac_buff;
            end if;
          end if;
-       else  -- 指数部が0以下になってしまう場合
+       else  -- 指数部が0以下になってしまう場合 
          exp := x"00";
          frac := "000" & x"00000";
        end if;
