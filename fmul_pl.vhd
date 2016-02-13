@@ -11,7 +11,7 @@ entity fmul_pl is
         clk : in std_logic;
         input_1 : in  std_logic_vector(31 downto 0);
         input_2 : in  std_logic_vector(31 downto 0);
-        output : out std_logic_vector(31 downto 0));
+        ans : out std_logic_vector(31 downto 0));
 end fmul_pl;
 
 architecture dataflow_pipeline of fmul_pl is
@@ -225,7 +225,7 @@ begin
               
      end if;
       
-      output <= std_logic_vector(sgn & exp & frac);
+      ans <= std_logic_vector(sgn & exp & frac);
         
     end process;
 
