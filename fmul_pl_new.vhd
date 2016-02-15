@@ -9,7 +9,6 @@ entity fmul_pipeline is
   port( clk : in std_logic;
         in1 : in std_logic_vector(31 downto 0);
         in2 : in std_logic_vector(31 downto 0);
-        cor : out std_logic_vector(2 downto 0);
         ans : out std_logic_vector(31 downto 0));
 end fmul_pipeline;
 
@@ -198,18 +197,18 @@ begin
    case s3_corner is
     when nan    =>
       ans  <= nan32;
-      cor  <= "111";
+    --  cor  <= "111";
     when inf    =>
       ans  <= inf32;
-      cor  <= "110";
+    --  cor  <= "110";
     when ninf   =>
       ans  <= ninf32;
-      cor  <= "101";
+    --  cor  <= "101";
     when zero   =>
       ans  <= zero32;
-      cor  <= "100";
+    --  cor  <= "100";
     when normal => 
-      cor  <= "000";  
+    --  cor  <= "000";  
       case s3_result is
         when underflow =>
           ans_sgn  <= '0';
