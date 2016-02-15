@@ -36,7 +36,7 @@ begin
     variable frac_00 : unsigned(30 downto 0);
   begin
       a_00 := (others => '0');
-      sign_00 := (others => '0');
+      sign_00 := '0';
       intbody_00 := (others => '0');
       frac_buff := (others => '0');
       msb_00 := 0;
