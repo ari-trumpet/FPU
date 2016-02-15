@@ -1,233 +1,236 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use ieee.std_logic_unsigned.all;
 
 library work;
 use work.fpu_common_p.all;
 
-entity fmul_pl is
-    port (
-        clk : in std_logic;
-        input_1 : in  std_logic_vector(31 downto 0);
-        input_2 : in  std_logic_vector(31 downto 0);
+entity fmul_pipeline is
+  port( clk : in std_logic;
+        in1 : in std_logic_vector(31 downto 0);
+        in2 : in std_logic_vector(31 downto 0);
+        cor : out std_logic_vector(2 downto 0);
         ans : out std_logic_vector(31 downto 0));
-end fmul_pl;
+end fmul_pipeline;
 
-architecture dataflow_pipeline of fmul_pl is
+architecture fmul_blackbox of fmul_pipeline is
 
-    subtype ninebit is integer range 0 to 511;
+  type cornercase is (nan, inf ,ninf, zero, normal);
+  type result     is (ok, overflow, underflow);
+  
+  function ifnan(input : std_logic_vector(31 downto 0))
+    return boolean
+  is
+  begin
+    if input(30 downto 23) = x"ff" and unsigned(input(22 downto 0)) /= 0 then
+      return TRUE;
+    else
+      return FALSE;
+    end if;
+  end ifnan;
+  
+  function ifinf(input : std_logic_vector(31 downto 0))
+    return boolean
+  is
+  begin
+    if input(30 downto 23) = x"ff" and unsigned(input(22 downto 0)) = 0 then
+      return TRUE;
+    else
+      return FALSE;
+    end if;
+  end ifinf;
 
- --   signal s0_sgn1, s0_sgn2, s0_sgnout   : std_logic;
-    signal s0_sgnout          : std_logic := '0';     
- --   signal s0_exp1, s0_exp2   : unsigned(7 downto 0);
-    signal s0_frac1, s0_frac2 : unsigned(22 downto 0) := (others => '0');
- --   signal s0_nan1, s0_nan2   : std_logic := '0';
-    signal s0_inf             : std_logic := '0';
-    signal s0_zero            : std_logic := '0';
-    signal s0_hh              : unsigned(27 downto 0) := (others => '0');
-    signal s0_hl, s0_lh       : unsigned(23 downto 0) := (others => '0');
-    signal s0_nan             : std_logic := '0';
-    
-    signal s1_nan             : std_logic := '0';
-    signal s1_inf             : std_logic := '0';
-    signal s1_zero            : std_logic := '0';
-    signal s1_sgnout          : std_logic := '0';
-    signal s1_exp1, s1_exp2   : unsigned(7 downto 0) := (others => '0');
---    signal s1_addexp          : unsigned(8 downto 0) := "000000000";
-    signal s1_hh              : unsigned(27 downto 0) := (others => '0');
-    signal s1_hl, s1_lh       : unsigned(13 downto 0) := (others => '0');
-    signal s1_product         : unsigned(27 downto 0) := (others => '0');
-    
-    signal s2_nan             : std_logic := '0';
-    signal s2_inf             : std_logic := '0';
-    signal s2_zero            : std_logic := '0';
-    signal s2_sgnout          : std_logic := '0';
-    signal s2_product         : unsigned(27 downto 0) := (others => '0');
---    signal s2_addexp          : unsigned(8 downto 0) := "000000000";
+  function ifzero(input : std_logic_vector(31 downto 0))
+    return boolean
+  is
+  begin
+    if input(30 downto 23) = x"00" then
+      return TRUE;
+    else
+      return FALSE;
+    end if;
+  end ifzero;
+  
+  constant nan32          : std_logic_vector(31 downto 0) := x"7fffffff";
+  constant inf32          : std_logic_vector(31 downto 0) := x"7f800000";
+  constant ninf32         : std_logic_vector(31 downto 0) := x"ff800000";
+  constant zero32         : std_logic_vector(31 downto 0) := x"00000000";
+  
+  constant fraction_roundup: std_logic_vector(25 downto 0) := (25 => '0', others => '1');
+  
+  alias    in1_sgn         : std_logic is in1(31);
+  alias    in1_exp         : std_logic_vector(7 downto 0) is in1(30 downto 23);
+  alias    in1_h           : std_logic_vector(12 downto 0) is in1(22 downto 10);
+  alias    in1_l           : std_logic_vector(9 downto 0) is in1(9 downto 0);
 
---    signal sgn                : std_logic;
---    signal exp                : unsigned(7 downto 0);
---    signal frac               : unsigned(22 downto 0);
-    
---    signal exp_buff           : unsigned(8 downto 0);
-    
-    signal s0_zeroinf, s1_zeroinf, s2_zeroinf : std_logic := '0';
-    
-    signal s1_addexp          : ninebit := 0;
-    signal s2_addexp          : ninebit := 0;
-  --  signal exp_buff           : ninebit;
-    
-    signal s0_exp1signal : unsigned(7 downto 0) := (others => '0');
-    signal s0_exp2signal : unsigned(7 downto 0) := (others => '0');
-        
-        
-begin    
-    latch0 : process(input_1, input_2)
-      variable s0_sgn1, s0_sgn2   : std_logic;
-      variable s0_exp1, s0_exp2  : unsigned(30 downto 23);
-      variable s0_frac1, s0_frac2 : unsigned(22 downto 0);
-      variable s0_nan1, s0_nan2   : std_logic;
-      variable s0_zerobuff        : std_logic;
-    begin 
+  alias    in2_sgn         : std_logic is in2(31);
+  alias    in2_exp         : std_logic_vector(7 downto 0) is in2(30 downto 23);
+  alias    in2_h           : std_logic_vector(12 downto 0) is in2(22 downto 10);
+  alias    in2_l           : std_logic_vector(9 downto 0) is in2(9 downto 0);
+  
+  alias    ans_sgn         : std_logic is ans(31);
+  alias    ans_exp         : std_logic_vector(7 downto 0) is ans(30 downto 23);
+  alias    ans_frac        : std_logic_vector(22 downto 0) is ans(22 downto 0);
+  
+  signal   s0_corner       : cornercase := normal;
+  signal   s0_sgn          : std_logic := '0';
+  signal   s0_exp          : std_logic_vector(8 downto 0) := (others => '0');
+  signal   s0_hh           : std_logic_vector(27 downto 0) := (others => '0');
+  signal   s0_hl           : std_logic_vector(23 downto 0) := (others => '0');    
+  signal   s0_lh           : std_logic_vector(23 downto 0) := (others => '0');
+  
+  signal   s1_corner       : cornercase := normal;
+  signal   s1_sgn          : std_logic := '0';
+  signal   s1_exp          : std_logic_vector(8 downto 0) := (others => '0');
+  signal   s1_hh           : std_logic_vector(27 downto 0) := (others => '0');
+  signal   s1_hl           : std_logic_vector(23 downto 0) := (others => '0');    
+  signal   s1_lh           : std_logic_vector(23 downto 0) := (others => '0');
+  
+  signal   s2_corner       : cornercase := normal;
+  signal   s2_sgn          : std_logic := '0';
+  signal   s2_exp          : std_logic_vector(7 downto 0) := (others => '0');
+  signal   s2_frac         : std_logic_vector(27 downto 0) := (others => '0');
+  signal   s2_result       : result := ok;
 
-            s0_sgn1  := input_1(31);
-            s0_exp1  := unsigned(input_1(30 downto 23));
-            s0_frac1 := unsigned(input_1(22 downto 0));
-            s0_sgn2  := input_2(31);
-            s0_exp2  := unsigned(input_2(30 downto 23));
-            s0_frac2 := unsigned(input_2(22 downto 0));
-
-      if    s0_exp1 = x"ff" and s0_frac1 > 0 then   -- nan * hoge の処理
-        s0_nan1 := '1';
-      elsif s0_exp2 = x"ff" and s0_frac2 > 0 then
-        s0_nan1 := '1';
-      else 
-        s0_nan1 := '0';
-      end if;
-      
-      if (s0_exp1 = x"ff") and (s0_exp2 = x"00") then   -- zero * +-inf の処理
-        s0_nan2 := '1';
-      elsif (s0_exp1 = x"00") and (s0_exp2 = x"ff") then
-        s0_nan2 := '1';
+  signal   s3_corner       : cornercase := normal;
+  signal   s3_sgn          : std_logic := '0';
+  signal   s3_exp          : std_logic_vector(7 downto 0) := (others => '0');
+  signal   s3_frac         : std_logic_vector(27 downto 0) := (others => '0');
+  signal   s3_result       : result := ok;
+  
+begin
+  seq0 : process(in1, in2)
+    variable corner   : cornercase;
+  begin
+    corner := nan;
+    if ifnan(in1) or ifnan(in2) then
+      corner := nan;
+    elsif ifinf(in1) and ifzero(in2) then  
+      corner := nan;
+    elsif ifzero(in1) and ifinf(in2) then
+      corner := nan;
+    elsif ifinf(in1) or ifinf(in2) then
+      if in1_sgn = in2_sgn then
+        corner := inf;
       else
-        s0_nan2 := '0';
+        corner := ninf;
       end if;
-      
-      if s0_exp1 = x"ff" then                        -- +-inf * hoge の処理
-        s0_inf <= '1';
-      elsif s0_exp2 = x"ff" then  -- or を取れば良い？ひげが出ないか一考
-        s0_inf <= '1';
-      else
-        s0_inf <= '0';
-      end if;
-      
-      if s0_exp1 = x"00" then                        -- zero * hoge の処理
-        s0_zerobuff := '1';
-      elsif s0_exp2 = x"00" then
-        s0_zerobuff := '1';
-      else
-        s0_zerobuff := '0';
-      end if;
-      
-  --    if input_1(31 downto 0) = x"00000000" and input_2(31 downto 0) = x"ffffffff" then
-  --      s0_zeroinf <= '1';
-  --    elsif  input_1(31 downto 0) = x"11111111" and input_2(31 downto 0) = x"00000000" then
-  --      s0_zeroinf <= '1';
-  --    else
-  --      s0_zeroinf <= '0';
-  --    end if;
-                                                      -- ※これらの例外は背反事象でないので後の処理の順番に注意
-      s0_sgnout  <= s0_sgn1 xor s0_sgn2;
-      s0_hh      <= unsigned('1' & s0_frac1(22 downto 10)) * unsigned('1' & s0_frac2(22 downto 10));
-      s0_hl      <= unsigned('1' & s0_frac1(22 downto 10)) * unsigned(s0_frac2(9 downto 0));
-      s0_lh      <= unsigned(s0_frac1(9 downto 0)) * unsigned('1' & s0_frac2(22 downto 10));
-      s0_nan     <= s0_nan1 or s0_nan2;
-      s0_exp1signal <= s0_exp1;
-      s0_exp2signal <= s0_exp2;
-      s0_zero <= s0_zerobuff;
-      
-    end process;
-
-
-    latch1 : process(clk)
-    begin
-        if rising_edge(clk) then
-            s1_nan   <= s0_nan;
-            s1_inf    <= s0_inf;
-            s1_zero   <= s0_zero;
-            s1_sgnout <= s0_sgnout;
-   --         s1_zeroinf <= s0_zeroinf;
-            s1_exp1   <= s0_exp1signal;
-            s1_exp2   <= s0_exp2signal;
-            s1_hh      <= s0_hh;
-            s1_hl      <= s0_hl(23 downto 10);
-            s1_lh      <= s0_lh(23 downto 10);
-        end if;
-    end process;
-
-    seq1 : process(s1_exp1, s1_exp2, s1_hh, s1_hl, s1_lh)
-    begin
-      s1_product <= ((s1_hh(27 downto 0) + (x"000" & "00" & s1_hl(13 downto 0))) + (x"000" & "00" & s1_lh(13 downto 0))) + 2;  -- 怪しい
-    --  s1_addexp <= unsigned("0"s1_exp1 + unsigned("0" & s1_exp2(7 downto 0));
-      s1_addexp <= TO_INTEGER(s1_exp1) + TO_INTEGER(s1_exp2);
-    end process;
+    elsif ifzero(in1) or ifzero(in2) then
+      corner := zero;
+    else
+      corner := normal;
+    end if;
     
-    latch2 : process(clk)
-    begin
-      if rising_edge(clk) then
-           s2_nan     <= s1_nan;
-           s2_inf     <= s1_inf;
-           s2_zero    <= s1_zero;
-     --      s2_zeroinf <= s1_zeroinf;
-           s2_sgnout  <= s1_sgnout;
-           s2_addexp  <= s1_addexp;
-           s2_product <= s1_product;
-      end if;
-    end process;
-           
-    seq2 : process(s2_nan, s2_inf, s2_zero, s2_sgnout, s2_product, s2_addexp)
-      variable frac_buff : unsigned(22 downto 0);
---      variable exp_buff  : unsigned(8 downto 0);
-      variable sgn       : std_logic;
-      variable exp       : unsigned(7 downto 0);
-      variable frac      : unsigned(22 downto 0);   
-      variable eb        : unsigned(7 downto 0);
-      variable exp_buff  : ninebit;
-    begin
-     if s2_nan = '1' then
-       sgn  := '0';
-       exp  := x"ff";
-       frac := "111" & x"fffff";
-     elsif s2_inf = '1' then
-       sgn  := s2_sgnout;
-       exp  := x"ff";
-       frac := "000" & x"00000";
-     elsif s2_zero = '1' then
-       sgn  := '0';--s2_sgnout;
-       exp  := x"00";
-       frac := "000" & x"00000";
-  --   elsif s2_zeroinf = '1' then
-  --     sgn  := '0';
-  --     exp  := x"ff";
-  --     frac := "111" & x"cafe0";
-     else
-       sgn := s2_sgnout;
-       if s2_product(27) = '1' then      -- 繰り上がりあり
-         frac_buff := round_even_26bit(s2_product(26 downto 1));
-         exp_buff  := s2_addexp + 1;
-       else
-         frac_buff := round_even_26bit(s2_product(25 downto 0));
-         exp_buff  := s2_addexp;
-       end if;
-             
-       -- exp-127 が指数部に実際に使う値
-       if exp_buff > 127 then -- 指数部が正の場合
---         if (to_integer(exp_buff) - 127) > 254 then
-         if (exp_buff - 127) > 254 then
-           exp  := x"ff";
-           frac := "000" & x"00000";
-         else
-           if frac_buff = 0 then
-             sgn := '0';
-             exp := x"ff";
-             frac := "111" & x"fffff";
-           else
-           eb := TO_UNSIGNED(exp_buff - 127, 8);
-           exp := unsigned(eb(7 downto 0));
-           frac := frac_buff;
-           end if;
-         end if;
-       else  -- 指数部が0以下になってしまう場合 
-         exp := x"00";
-         frac := "000" & x"00000";
-       end if;
-              
-     end if;
+    s0_corner           <= corner;
+    s0_sgn              <= in1_sgn xor in2_sgn;
+    s0_exp(8 downto 0) <= std_logic_vector(unsigned('0' & in1_exp) + unsigned('0' & in2_exp));
+    s0_hh      <= std_logic_vector(unsigned('1' & in1_h) * unsigned('1' & in2_h));
+    s0_hl      <= std_logic_vector(unsigned('1' & in1_h) * unsigned(in2_l));
+    s0_lh      <= std_logic_vector(unsigned(in1_l) * unsigned('1' & in2_h));
+  end process;
+  
+  latch1 : process(clk)
+  begin
+   if rising_edge(clk) then
+    s1_corner             <= s0_corner;
+    s1_sgn                <= s0_sgn;
+    s1_exp(8 downto 0)   <= s0_exp(8 downto 0);
+    s1_hh(27 downto 0)   <= s0_hh(27 downto 0);
+    s1_hl(23 downto 0)   <= s0_hl(23 downto 0);
+    s1_lh(23 downto 0)   <= s0_lh(23 downto 0);
+   end if;
+  end process;
+  
+  seq1 : process(s1_corner, s1_sgn, s1_exp, s1_hh, s1_hl, s1_lh)
+    variable hh2  : std_logic_vector(27 downto 0);
+    variable hllh : std_logic_vector(14 downto 0);
+    variable frac : std_logic_vector(27 downto 0);
+    variable exp  : std_logic_vector(8 downto 0);
+    variable exp8 : std_logic_vector(8 downto 0);
+  begin
+    hh2  := (others => '0');
+    hllh := (others => '0');
+    frac := (others => '0');
+    exp  := (others => '0');
+    exp8 := (others => '0');
+    
+    hh2  := std_logic_vector(unsigned(s1_hh) + 2);
+    hllh := std_logic_vector(unsigned('0' & s1_hl(23 downto 10)) + unsigned('0' & s1_lh(23 downto 10)));
+    frac := std_logic_vector(unsigned(hh2) + unsigned("0000000000000" & hllh));    
+    s2_frac <= frac;
+
+    if frac(27) = '1' then
+      exp := std_logic_vector(unsigned(s1_exp) + 1);
+    else
+      exp := std_logic_vector(unsigned(s1_exp));
+    end if;
+    if unsigned(exp) < 128 then
+      s2_result <= underflow;
+      s2_exp    <= (others => '0');
+    elsif unsigned(exp) > 381 then
+      s2_result <= overflow;
+      s2_exp    <= (others => '0');
+    else
+      s2_result <= ok;
+      exp8 := std_logic_vector(unsigned(exp) - 127);
+      s2_exp    <= exp8(7 downto 0);
+    end if;
+     
+    s2_corner <= s1_corner;
+    s2_sgn    <= s1_sgn; 
       
-      ans <= std_logic_vector(sgn & exp & frac);
-        
-    end process;
+   end process;
+   
+   latch2 : process(clk)
+   begin 
+    if rising_edge(clk) then
+     s3_corner            <= s2_corner;
+     s3_result            <= s2_result;
+     s3_sgn               <= s2_sgn;
+     s3_exp(7 downto 0)  <= s2_exp(7 downto 0);
+     s3_frac(27 downto 0) <= s2_frac(27 downto 0);
+    end if;
+   end process;
+   
+   seq2 : process(s3_corner, s3_result, s3_sgn, s3_exp, s3_frac)
+   begin
+   
+   case s3_corner is
+    when nan    =>
+      ans  <= nan32;
+      cor  <= "111";
+    when inf    =>
+      ans  <= inf32;
+      cor  <= "110";
+    when ninf   =>
+      ans  <= ninf32;
+      cor  <= "101";
+    when zero   =>
+      ans  <= zero32;
+      cor  <= "100";
+    when normal => 
+      cor  <= "000";  
+      case s3_result is
+        when underflow =>
+          ans_sgn  <= '0';
+          ans_exp  <= (others => '0');
+          ans_frac <= (others => '0');
+        when overflow =>
+          ans_sgn  <= s3_sgn;
+          ans_exp  <= (others => '1');
+          ans_frac <= (others => '0');
+        when ok =>
+          ans_sgn <= s3_sgn;
+          ans_exp <= s3_exp;
 
-
-end dataflow_pipeline;
+          if s3_frac(27) = '1' then      -- 繰り上がりあり
+           ans_frac <= std_logic_vector(round_even_26bit(unsigned(s3_frac(26 downto 1))));
+          else
+           ans_frac <= std_logic_vector(round_even_26bit(unsigned(s3_frac(25 downto 0))));
+          end if;
+      end case;
+   end case;
+   
+   end process;
+   
+end fmul_blackbox;
