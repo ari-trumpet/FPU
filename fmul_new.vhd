@@ -9,9 +9,9 @@ entity fmul_pipeline is
   port( clk : in std_logic;
         in1 : in std_logic_vector(31 downto 0);
         in2 : in std_logic_vector(31 downto 0);
-        cor0 : out std_logic_vector(2 downto 0);
-        cor1 : out std_logic_vector(2 downto 0);
-        cor2 : out std_logic_vector(2 downto 0);
+--        cor0 : out std_logic_vector(2 downto 0);
+--        cor1 : out std_logic_vector(2 downto 0);
+--        cor2 : out std_logic_vector(2 downto 0);
         ans : out std_logic_vector(31 downto 0));
 end fmul_pipeline;
 
@@ -58,7 +58,7 @@ architecture fmul_blackbox of fmul_pipeline is
   constant ninf32         : std_logic_vector(31 downto 0) := x"ff800000";
   constant zero32         : std_logic_vector(31 downto 0) := x"00000000";
   
-  constant fraction_roundup: std_logic_vector(25 downto 0) := (25 => '0', others => '1');
+  --constant fraction_roundup: std_logic_vector(25 downto 0) := (25 => '0', others => '1');
   
   alias    in1_sgn         : std_logic is in1(31);
   alias    in1_exp         : std_logic_vector(7 downto 0) is in1(30 downto 23);
@@ -123,18 +123,18 @@ begin
       corner := normal;
     end if;
     
-    case corner is
-    when nan    =>
-      cor0  <= "111";
-    when inf    =>
-      cor0  <= "110";
-    when ninf   =>
-      cor0  <= "101";
-    when zero   =>
-      cor0  <= "100";
-    when normal => 
-      cor0  <= "000";
-    end case;
+--    case corner is
+--    when nan    =>
+--      cor0  <= "111";
+--    when inf    =>
+--      cor0  <= "110";
+--    when ninf   =>
+--      cor0  <= "101";
+--    when zero   =>
+--      cor0  <= "100";
+--    when normal => 
+--      cor0  <= "000";
+--    end case;
     
     s0_corner           <= corner;
     s0_sgn              <= in1_sgn xor in2_sgn;
@@ -202,18 +202,18 @@ begin
     s2_corner <= s1_corner;
     s2_sgn    <= s1_sgn; 
       
-    case s1_corner is
-    when nan    =>
-      cor1  <= "111";
-    when inf    =>
-      cor1  <= "110";
-    when ninf   =>
-      cor1  <= "101";
-    when zero   =>
-      cor1  <= "100";
-    when normal => 
-      cor1  <= "000";
-    end case;  
+--    case s1_corner is
+--    when nan    =>
+--      cor1  <= "111";
+--    when inf    =>
+--      cor1  <= "110";
+--    when ninf   =>
+--      cor1  <= "101";
+--    when zero   =>
+--      cor1  <= "100";
+--    when normal => 
+--      cor1  <= "000";
+--    end case;  
     
    end process;
    
@@ -234,18 +234,18 @@ begin
    case s3_corner is
     when nan    =>
       ans  <= nan32;
-      cor2  <= "111";
+--      cor2  <= "111";
     when inf    =>
       ans  <= inf32;
-      cor2  <= "110";
+--      cor2  <= "110";
     when ninf   =>
       ans  <= ninf32;
-      cor2  <= "101";
+--      cor2  <= "101";
     when zero   =>
       ans  <= zero32;
-      cor2  <= "100";
+--      cor2  <= "100";
     when normal => 
-      cor2  <= "000";  
+--      cor2  <= "000";  
       case s3_result is
         when underflow =>
           ans_sgn  <= '0';
