@@ -7,7 +7,11 @@ module fadd (
     output logic[31:0] c, // 加算結果
     output logic[8:0] DIFF,
     output logic SIGN1,
-    output logic[26:0] SHIFT_MB
+    output logic[26:0] SHIFT_MB,
+    output logic[7:0] EXPSELECT3,
+    output logic[23:0] MASELECT3,
+    output logic[26:0] MASELECT,
+    output logic[27:0] MASELECT2
 );
 
 // reg
@@ -31,7 +35,7 @@ module fadd (
   logic[8:0] expsub2,expselect2;
   logic[26:0] maplus2,maminus2,maselect,maselect3;
   logic[27:0] maselect2;
-  logic pattern1,pattern2,pattern3;
+  logic pattern1,pattern2,pattern3,pattern4,pattern5;
   logic[8:0] expplus;  //ok
   logic[31:0] returnbits;
   
@@ -241,7 +245,7 @@ endfunction
      if(pattern1 == 1'b1) 
       maplus1 = ma + shift_mb;  // 28bit = 27bit + 27bit 
      else
-      maplus1 = 28'b0;
+      maplus1 = ma - shift_mb;
      end
     
     always_comb
@@ -263,9 +267,9 @@ endfunction
     always_comb  /* fadd.c l:59 */
      begin
        if(pattern2 == 1'b1)
-         maplus2 = {maplus1[27:2],|maplus1[1:0]};
+         maplus2[26:0] = {maplus1[27:2],|maplus1[1:0]};
        else
-         maplus2 = 1'b0;
+         maplus2[26:0] = maplus1[26:0];
      end    
      
 	always_comb  /* fadd.c l:62 */
@@ -273,7 +277,7 @@ endfunction
 	  if(pattern1 == 1'b0)
 		  maminus1 = ma - shift_mb;   // ここをミスってたのかああああ！！！	x ma - mb;	  
 	  else 
-		  maminus1 = 28'b0;            // 
+		  maminus1 = ma + shift_mb;            // 
     end
     
     always_comb  /* fadd.c l:63 */
@@ -438,10 +442,12 @@ endfunction
       if(pattern2 == 1'b1)
         maselect = maplus2;
       else if(pattern1 == 1'b1)
-        maselect = maplus1[26:0];
+        maselect = maplus1[26:0];  // maselect : 27bit
       else 
         maselect = maminus2;
     end
+
+    assign MASELECT = maselect;
 
     assign expsub2 = exp1 - expsub;
 
@@ -460,15 +466,33 @@ endfunction
 	always_comb
 	begin
 	  if((maselect[2] == 1'b1) && ((maselect[3:0] & 4'b1011) != 4'b0000))
-	    maselect2 = maselect + 4'b1000;
+	    pattern4 = 1'b1;
       else
-        maselect2 = {1'b0,maselect};
+        pattern4 = 1'b0;
+    end
+    
+    always_comb
+    begin
+      if(pattern4 == 1'b1)
+        maselect2[27:0] = maselect[26:0] + 4'b1000;
+      else
+        maselect2[27:0] = {1'b0,maselect[26:0]};  // maselect2 : 28bit
+    end
+    
+    assign MASELECT2[27:0] = maselect2[27:0];
+    
+    always_comb
+    begin
+        if(pattern4==1'b1 && maselect2[27]==1'b1)
+          pattern5 = 1'b1;
+        else
+          pattern5 = 1'b0;
     end
     
     /* fadd.c l:76 */
 	always_comb
 	begin
-	  if(maselect2[26]==1'b1)
+	  if(pattern5==1'b1)
 	    maselect3 = maselect2[27:1];
 	  else
 	    maselect3 = maselect2[26:0];
@@ -477,13 +501,16 @@ endfunction
 	/* fadd.c l:77 */
 	always_comb
 	begin
-	  if(maselect2[26]==1'b1)
+	  if(pattern5==1'b1)
 	    expselect2 = expselect + 1'b1;
 	  else
-	    expselect2 = expselect;
+	    expselect2 = {1'b0,expselect};
 	end
 	
 	assign expselect3 = expselect2[7:0];
+	
+	assign EXPSELECT3 = expselect3;
+	assign MASELECT3 = maselect3;
 	
 	always_comb
 	begin 
@@ -511,9 +538,11 @@ endfunction
 			returnbits = {sign1,31'b0000000000000000000000000000000};
 		else
 			//returnbits = {sign1,8'b11111111,23'b11111111111111111111111};
-			returnbits = {sign1,expselect3,maselect3};
+			/* ここでした死にたい。maselect3は27bit 1.mantissa *** 構成だから下3ビットは捨てる */
+			//returnbits = {sign1,expselect3[7:0],maselect3[22:0]};
+			returnbits = {sign1,expselect3[7:0],maselect3[25:3]};
 	end                            /*expselect3 maselect3*/
-				
+				                    
 	assign c = returnbits;
 
 endmodule
